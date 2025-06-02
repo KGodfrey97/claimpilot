@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom"
 import { useState } from "react"
 import { supabase } from "./supabase"
 
@@ -6,22 +7,57 @@ export default function Auth() {
   const [password, setPassword] = useState("")
   const [isLogin, setIsLogin] = useState(true)
   const [message, setMessage] = useState("")
+  const navigate = useNavigate()
+
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    let result
+  e.preventDefault()
+  let result
+
+  try {
     if (isLogin) {
       result = await supabase.auth.signInWithPassword({ email, password })
     } else {
       result = await supabase.auth.signUp({ email, password })
+      console.log("SignUp result:", result)
+
+      const userId = result.data?.user?.id
+      console.log("New User ID:", userId)
+
+      if (userId) {
+        const { error } = await supabase.from("profiles").insert({
+          id: userId,
+          name: email.split("@")[0],
+          plan: "starter",
+          trial_end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        })
+
+        if (error) {
+          console.error("Profile insert error:", error.message)
+        } else {
+          console.log("Profile inserted successfully.")
+        }
+      } else {
+        console.warn("No user ID returned from signUp.")
+      }
     }
 
     if (result.error) {
       setMessage(result.error.message)
     } else {
       setMessage(isLogin ? "Logged in!" : "Check your email for confirmation.")
+      
+      // Redirect after successful login
+      if (isLogin) {
+        navigate("/")
+      }
     }
+  } catch (err) {
+    console.error("SignUp exception:", err)
   }
+}
+
+
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
