@@ -15,14 +15,47 @@ export default function NewAppeal() {
     e.preventDefault()
     setSubmitting(true)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
       setMessage("You must be logged in to submit an appeal.")
+      setSubmitting(false)
+      return
+    }
+
+    const userId = user.id
+
+    // Fetch profile to check quota
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("appeal_quota")
+      .eq("id", userId)
+      .single()
+
+    if (profileError || !profile) {
+      setMessage("Unable to retrieve profile.")
+      setSubmitting(false)
+      return
+    }
+
+    const { data: appeals, error: appealsError } = await supabase
+      .from("appeals")
+      .select("id")
+      .eq("user_id", userId)
+
+    if (appealsError) {
+      setMessage("Unable to check existing appeals.")
+      setSubmitting(false)
+      return
+    }
+
+    if (appeals.length >= profile.appeal_quota) {
+      setMessage("You have reached your appeal quota.")
+      setSubmitting(false)
       return
     }
 
     const { error } = await supabase.from("appeals").insert({
-      user_id: user.id,
+      user_id: userId,
       payer,
       denial_code: denialCode,
       letter_text: letterText,
@@ -32,7 +65,7 @@ export default function NewAppeal() {
     if (error) {
       setMessage("Error submitting appeal: " + error.message)
     } else {
-      navigate("/")
+      navigate("/dashboard")
     }
 
     setSubmitting(false)

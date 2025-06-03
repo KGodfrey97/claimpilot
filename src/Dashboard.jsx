@@ -27,8 +27,6 @@ export default function Dashboard() {
         .eq("id", user.id)
         .single()
 
-      setProfile(profileData)
-
       // Fetch appeals
       const { data: appealData } = await supabase
         .from("appeals")
@@ -36,7 +34,11 @@ export default function Dashboard() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
 
+      const appealsUsed = appealData?.length || 0
+      const appealsRemaining = (profileData.appeal_quota || 0) - appealsUsed
+
       setAppeals(appealData || [])
+      setProfile({ ...profileData, appealsUsed, appealsRemaining })
       setLoading(false)
     }
 
@@ -62,7 +64,7 @@ export default function Dashboard() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ appealId, payer, denialCode, userId }), // ✅ explicitly pass userId
+        body: JSON.stringify({ appealId, payer, denialCode, userId }),
         credentials: "omit",
       })
 
@@ -73,14 +75,18 @@ export default function Dashboard() {
       }
 
       alert("Letter generated successfully!")
-      // Refetch appeals (better UX than full reload)
+
       const { data: updatedAppeals } = await supabase
         .from("appeals")
         .select("*")
         .eq("user_id", profile.id)
         .order("created_at", { ascending: false })
 
+      const appealsUsed = updatedAppeals?.length || 0
+      const appealsRemaining = (profile.appeal_quota || 0) - appealsUsed
+
       setAppeals(updatedAppeals || [])
+      setProfile({ ...profile, appealsUsed, appealsRemaining })
 
     } catch (err) {
       alert("Error: " + err.message)
@@ -93,8 +99,11 @@ export default function Dashboard() {
         <h1 className="text-3xl font-bold text-blue-700 mb-2">
           Welcome, {profile.name} 👋
         </h1>
-        <p className="text-gray-700 mb-4">
+        <p className="text-gray-700 mb-2">
           Plan: <span className="font-semibold capitalize">{profile.plan}</span> | Trial: {daysLeft} day{daysLeft !== 1 ? "s" : ""}
+        </p>
+        <p className="text-gray-700 mb-4">
+          Appeals Remaining: <span className="font-semibold">{profile.appealsRemaining}</span>
         </p>
         <Link to="/new-appeal">
           <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
@@ -132,6 +141,11 @@ export default function Dashboard() {
                     >
                       Generate Letter
                     </button>
+                    <Link to={`/appeal/${appeal.id}`}>
+                      <button className="ml-2 bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1 rounded">
+                        View Letter
+                      </button>
+                    </Link>
                   </td>
                 </tr>
               ))}

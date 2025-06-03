@@ -4,6 +4,7 @@ import { supabase } from "./supabase"
 import Auth from "./Auth"
 import Dashboard from "./Dashboard"
 import NewAppeal from "./NewAppeal"
+import LetterViewer from "./LetterViewer"
 
 export default function App() {
   const [loading, setLoading] = useState(true)
@@ -41,6 +42,7 @@ export default function App() {
       <Route path="/auth" element={<Auth />} />
       <Route path="/dashboard" element={session ? <Dashboard /> : <Navigate to="/auth" />} />
       <Route path="/new-appeal" element={session ? <NewAppeal /> : <Navigate to="/auth" />} />
+      <Route path="/appeal/:id" element={<LetterViewer />} />
       <Route path="*" element={<Navigate to={session ? "/dashboard" : "/auth"} />} />
     </Routes>
   )
