@@ -1,32 +1,47 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
-import { supabase } from './supabase'
-import Auth from './Auth'
-import Dashboard from './Dashboard'
+import { useEffect, useState } from "react"
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom"
+import { supabase } from "./supabase"
+import Auth from "./Auth"
+import Dashboard from "./Dashboard"
 import NewAppeal from "./NewAppeal"
 
-function App() {
+export default function App() {
+  const [loading, setLoading] = useState(true)
   const [session, setSession] = useState(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
       setSession(session)
-    })
+      setLoading(false)
+    }
+
+    getSession()
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
     })
 
-    return () => listener?.subscription.unsubscribe()
+    return () => {
+      listener?.subscription.unsubscribe()
+    }
   }, [])
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-100">
+        <p className="text-gray-600 text-lg">Loading...</p>
+      </div>
+    )
+  }
 
   return (
     <Routes>
-      <Route path="/" element={session ? <Dashboard /> : <Navigate to="/auth" />} />
       <Route path="/auth" element={<Auth />} />
-      <Route path="/new-appeal" element={session ? <NewAppeal /> : <Navigate to="/auth" />} /> {/* Add this route */}
+      <Route path="/dashboard" element={session ? <Dashboard /> : <Navigate to="/auth" />} />
+      <Route path="/new-appeal" element={session ? <NewAppeal /> : <Navigate to="/auth" />} />
+      <Route path="*" element={<Navigate to={session ? "/dashboard" : "/auth"} />} />
     </Routes>
   )
 }
-
-export default App

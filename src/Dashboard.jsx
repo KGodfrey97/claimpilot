@@ -1,21 +1,24 @@
 import { useEffect, useState } from "react"
 import { supabase } from "./supabase"
-import { useNavigate } from "react-router-dom"
-import { Link } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
 
 export default function Dashboard() {
   const [profile, setProfile] = useState(null)
   const [appeals, setAppeals] = useState([])
   const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState("")
   const navigate = useNavigate()
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      const { data: { user }, error } = await supabase.auth.getUser()
+
+      if (error || !user) {
         navigate("/auth")
         return
       }
+
+      setUserId(user.id)
 
       // Fetch profile
       const { data: profileData } = await supabase
@@ -52,28 +55,37 @@ export default function Dashboard() {
     (new Date(profile.trial_end_date) - new Date()) / (1000 * 60 * 60 * 24)
   )
 
-    const handleGenerateLetter = async (appealId, payer, denialCode) => {
-        try {
-            const response = await fetch("http://localhost:3001/api/generate-letter", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ appealId, payer, denialCode }),
-            })
+  const handleGenerateLetter = async (appealId, payer, denialCode) => {
+    try {
+      const response = await fetch("http://localhost:3001/api/generate-letter", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ appealId, payer, denialCode, userId }), // ✅ explicitly pass userId
+        credentials: "omit",
+      })
 
-            const data = await response.json()
+      const data = await response.json()
 
-            if (!response.ok) {
-            throw new Error(data.error || "Failed to generate letter")
-            }
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate letter")
+      }
 
-            // Optional: reload appeals or show success
-            alert("Letter generated successfully!")
-            window.location.reload()
-        } catch (err) {
-            alert("Error: " + err.message)
-        }
+      alert("Letter generated successfully!")
+      // Refetch appeals (better UX than full reload)
+      const { data: updatedAppeals } = await supabase
+        .from("appeals")
+        .select("*")
+        .eq("user_id", profile.id)
+        .order("created_at", { ascending: false })
+
+      setAppeals(updatedAppeals || [])
+
+    } catch (err) {
+      alert("Error: " + err.message)
     }
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
@@ -82,14 +94,12 @@ export default function Dashboard() {
           Welcome, {profile.name} 👋
         </h1>
         <p className="text-gray-700 mb-4">
-          Plan: <span className="font-semibold capitalize">{profile.plan}</span> | Trial: {daysLeft} day{daysLeft !== 1 ? "s" : ""} remaining
+          Plan: <span className="font-semibold capitalize">{profile.plan}</span> | Trial: {daysLeft} day{daysLeft !== 1 ? "s" : ""}
         </p>
         <Link to="/new-appeal">
-            <button
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-            >
+          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
             + New Appeal
-            </button>
+          </button>
         </Link>
       </div>
 
@@ -105,25 +115,26 @@ export default function Dashboard() {
                 <th className="pb-2">Denial Code</th>
                 <th className="pb-2">Status</th>
                 <th className="pb-2">Created</th>
+                <th className="pb-2">Actions</th>
               </tr>
             </thead>
             <tbody>
-                {appeals.map((appeal) => (
-                    <tr key={appeal.id} className="border-b hover:bg-gray-50">
-                    <td className="py-2">{appeal.payer}</td>
-                    <td className="py-2">{appeal.denial_code}</td>
-                    <td className="py-2 capitalize">{appeal.status}</td>
-                    <td className="py-2">{new Date(appeal.created_at).toLocaleDateString()}</td>
-                    <td className="py-2">
-                        <button
-                        className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1 rounded"
-                        onClick={() => handleGenerateLetter(appeal.id, appeal.payer, appeal.denial_code)}
-                        >
-                        Generate Letter
-                        </button>
-                    </td>
-                    </tr>
-                ))}
+              {appeals.map((appeal) => (
+                <tr key={appeal.id} className="border-b hover:bg-gray-50">
+                  <td className="py-2">{appeal.payer}</td>
+                  <td className="py-2">{appeal.denial_code}</td>
+                  <td className="py-2 capitalize">{appeal.status}</td>
+                  <td className="py-2">{new Date(appeal.created_at).toLocaleDateString()}</td>
+                  <td className="py-2">
+                    <button
+                      className="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1 rounded"
+                      onClick={() => handleGenerateLetter(appeal.id, appeal.payer, appeal.denial_code)}
+                    >
+                      Generate Letter
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
